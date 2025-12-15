@@ -38,6 +38,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
         // Later on we'll use this module as the root module of a test executable
         // which requires us to specify a target.
+
         .target = target,
     });
 
@@ -83,6 +84,10 @@ pub fn build(b: *std.Build) void {
             .link_libc = true,
         }),
     });
+
+    exe.root_module.addOptions(
+        "simd_options", // ????
+    );
 
     exe.root_module.linkSystemLibrary("SDL3", .{ .preferred_link_mode = .static });
     exe.root_module.addCSourceFile(.{ .file = b.path("src/extern/src/glad.c") });

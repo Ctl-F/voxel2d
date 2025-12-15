@@ -33,23 +33,53 @@ fn compile_shader(id: ShaderID) !u32 {
     const sources = ShaderSources[@intFromEnum(id)];
 
     const vert = try compile_gl_shader(gl.GL_VERTEX_SHADER, sources.vsrc);
+    defer gl.glDeleteShader(vert);
+
     const frag = try compile_gl_shader(gl.GL_FRAGMENT_SHADER, sources.fsrc);
-    _ = vert;
-    _ = frag;
-    // TODO: Finish
+    defer gl.glDeleteShader(frag);
+
+    const prog = try link_gl_shader(vert, frag);
+    return prog;
+}
+
+fn link_gl_shader(vert: u32, frag: u32) !u32 {
+    const gl = sdl.gl;
+    const prog = gl.glCreateProgram();
+    errdefer gl.glDeleteProgram(prog);
+
+    gl.glAttachShader(prog, vert);
+    defer gl.glDetachShader(prog, vert);
+
+    gl.glAttachShader(prog, frag);
+    defer gl.glDetachShader(prog, frag);
+
+    gl.glLinkProgram(prog);
+
+    var success: c_int = undefined;
+    var infoLog: [512]u8 = undefined;
+
+    gl.glGetProgramiv(prog, gl.GL_LINK_STATUS, &success);
+    if (success == gl.GL_FALSE) {
+        gl.glGetProgramInfoLog(prog, infoLog.len, null, &infoLog[0]);
+        std.debug.print("Shader Linker Error: {s}\n", .{infoLog});
+        return error.ShaderLinkError;
+    }
+
+    return prog;
 }
 
 fn compile_gl_shader(kind: c_int, source: [:0]const u8) !u32 {
     const gl = sdl.gl;
     const shader = gl.glCreateShader(kind);
+    errdefer gl.glDeleteShader(shader);
+
     gl.glShaderSource(shader, 1, source.ptr, null);
     gl.glCompileShader(shader);
-    errdefer gl.glDeleteShader(shader);
 
     var success: c_int = undefined;
     var infoLog: [512]u8 = undefined;
     gl.glGetShaderiv(shader, gl.GL_COMPILE_STATUS, &success);
-    if (success == 0) {
+    if (success == gl.GL_FALSE) {
         gl.glGetShaderInfoLog(shader, infoLog.len, null, &infoLog[0]);
         std.debug.print("Shader Error: {s}\n", .{infoLog});
         return error.ShaderCompileError;
