@@ -11,7 +11,34 @@ pub fn build(b: *std.Build) void {
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
     // for restricting supported target set are available.
-    const target = b.standardTargetOptions(.{});
+    var target = b.standardTargetOptions(.{});
+
+    const SIMD_Mode = enum {
+        SSE,
+        AVX2,
+        AVX512,
+    };
+
+    const mode = b.option(SIMD_Mode, "VecMode", "Which vector mode to use in binary") orelse .SSE;
+
+    const options = b.addOptions();
+    switch (mode) {
+        .SSE => {
+            options.addOption(u32, "SIMD_LANES", 4);
+        },
+        .AVX2 => {
+            options.addOption(u32, "SIMD_LANES", 8);
+            target.query.cpu_features_add.addFeature(@intFromEnum(std.Target.x86.Feature.avx2));
+        },
+        .AVX512 => {
+            options.addOption(u32, "SIMD_LANES", 16);
+            target.query.cpu_features_add.addFeature(@intFromEnum(std.Target.x86.Feature.avx512f));
+            target.query.cpu_features_add.addFeature(@intFromEnum(std.Target.x86.Feature.avx512dq));
+            target.query.cpu_features_add.addFeature(@intFromEnum(std.Target.x86.Feature.avx512bw));
+            target.query.cpu_features_add.addFeature(@intFromEnum(std.Target.x86.Feature.avx512vl));
+        },
+    }
+
     // Standard optimization options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
     // set a preferred release mode, allowing the user to decide how to optimize.
@@ -85,9 +112,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    exe.root_module.addOptions(
-        "simd_options", // ????
-    );
+    exe.root_module.addImport("SIMD_Options", options.createModule());
 
     exe.root_module.linkSystemLibrary("SDL3", .{ .preferred_link_mode = .static });
     exe.root_module.addCSourceFile(.{ .file = b.path("src/extern/src/glad.c") });

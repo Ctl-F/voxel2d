@@ -1,6 +1,7 @@
 const std = @import("std");
 const sdl = @import("sdl.zig");
 const core = @import("core.zig");
+const simd_options = @import("SIMD_Options");
 
 pub const ElementID = u16; // we could probably get by with just u8
 pub const AtomID = u32;
@@ -40,7 +41,6 @@ pub const AtomManager = struct {
     active_instances_buffer: []AtomID,
     active_instances: []AtomID,
     active_region: Region,
-    _physics_step_fn: *const fn (this: *This, dt: f32) void,
 
     pub fn init(allocator: std.mem.Allocator, count: AtomID) !This {
         const MaxBondCount = count * MaxBondsPerAtom;
@@ -95,18 +95,6 @@ pub const AtomManager = struct {
             atom_buffer.valence_bond_counts[idx] = 0; // update this when creating based off of ElementID
         }
 
-        const physics_fn = FN: {
-            if (sdl.SDL_HasAVX512F()) {
-                break :FN &This.physics_step_avx512;
-            }
-
-            if (sdl.SDL_HasAVX2() or sdl.SDL_HasAVX()) {
-                break :FN &This._physics_step_avx;
-            }
-
-            break :FN &This._physics_step_sse2;
-        };
-
         return This{
             .allocator = allocator,
             .dense_atoms = atom_buffer,
@@ -116,7 +104,6 @@ pub const AtomManager = struct {
             .next_handle = 1,
             .active_instances_buffer = active_instances,
             .active_instances = &.{},
-            ._physics_fn = physics_fn,
         };
     }
 
@@ -231,19 +218,7 @@ pub const AtomManager = struct {
     }
 
     pub inline fn physics_step(this: *This, dt: f32) void {
-        return this._physics_step_fn(dt);
-    }
-
-    fn _physics_step_sse2(this: *AtomManager, dt: f32) void {
-        return _physics_step(4, this, dt);
-    }
-
-    fn _physics_step_avx(this: *AtomManager, dt: f32) void {
-        return _physics_step(8, this, dt);
-    }
-
-    fn physics_step_avx512(this: *AtomManager, dt: f32) void {
-        return _physics_step(16, this, dt);
+        return _physics_step(simd_options.SIMD_LANES, this, dt);
     }
 
     fn _physics_step(comptime SIMD_LANES: usize, this: *This, dt: f32) void {
