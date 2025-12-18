@@ -3,6 +3,7 @@ const v2d = @import("voxel2d");
 
 pub fn main() !void {
     defer std.debug.assert(v2d.core.GeneralPurposeAllocatorType.deinit() != .leak);
+    defer v2d.assets.release_assets();
 
     const window = try v2d.sdl.createWindow(.{
         .width = 1280,
@@ -89,7 +90,7 @@ pub fn main() !void {
         v2d.sdl.setColor(window, v2d.Color.Clear);
         v2d.sdl.clear(window);
 
-        //universe.render(window);
+        universe.render();
 
         v2d.sdl.refresh(window);
     }
